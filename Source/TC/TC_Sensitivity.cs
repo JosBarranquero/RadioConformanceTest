@@ -1,15 +1,6 @@
-using RadioConformanceTests.Scpi;
+using RadioConformanceTests.Instruments;
 
 namespace RadioConformanceTests.TC;
-
-public enum TestVerdict
-{
-    None, 
-    Inconclusive, 
-    Pass, 
-    Fail, 
-    Error
-}
 
 class TC_Sensitivity 
 {
@@ -23,11 +14,11 @@ class TC_Sensitivity
     private double cfg_StartPower_DBm = -10;
     private double cfg_EndPower_DBm = -90;
     private double cfg_PowerStep_DBm = -10;
-    private readonly IScpiClient scpi;
+    private readonly IBseInstrument bse;
 
-    public TC_Sensitivity(string bseAddress)
+    public TC_Sensitivity(IBseInstrument instrument)
     {
-        this.scpi = new ScpiClient(bseAddress);
+        this.bse = instrument;
     }
 
     public TestVerdict Execute()
@@ -38,35 +29,31 @@ class TC_Sensitivity
             Console.WriteLine($"TC_Sensitivity::START");
 
             //Verify BSE instrument
-            var instrumentIdString = this.scpi.Query("BSE:*IDN?");
-            if(instrumentIdString != "Keysight,BSE")
+            if (!this.bse.IsDetected())
             {
-                Console.WriteLine($"TC_Sensitivity::Fail Unknown instrument");
+                Console.WriteLine($"TC_Sensitivity::Fail BSE not detected");
                 return TestVerdict.Fail;
             }
 
             // Start Cell
-            this.scpi.Command("BSE:CELL1:TECH 5G");
-            this.scpi.Command("BSE:CELL1:ON");
+            this.bse.CellOn();
 
             // Frequency sweep
             uint stepCount = 1 ;
             for(double freq = cfg_StartFreq_MHz; freq <= cfg_EndFreq_MHz; freq += cfg_FreqStep_MHz)
             {
-                this.scpi.Command($"BSE:CELL1:FREQ {freq}");
-
                 for(double power=cfg_StartPower_DBm; power >= cfg_EndPower_DBm; power+=cfg_PowerStep_DBm)
                 {
                     Console.WriteLine($"TC_Sensitivity:: Step {stepCount} Configure BSE {freq}MHz {power}dBm");
                 
-                    this.scpi.Command($"BSE:CELL1:POW {power}");
+                    this.bse.ConfigureCell(freq,power);
 
                     // Wait for UE to connect
                     Thread.Sleep(100);
 
-                    if(this.scpi.Query("BSE:CELL1:UE:CONNECTED") != "1")
+                    if (!this.bse.UeConnected())
                     {
-                         Console.WriteLine($"TC_Sensitivity:: Step {stepCount} Fail");
+                        Console.WriteLine($"TC_Sensitivity:: Step {stepCount} Fail");
                         finalVerdict = TestVerdict.Fail;
                     }
                     stepCount++;
@@ -82,8 +69,8 @@ class TC_Sensitivity
         }
         finally
         {
-            // Start Cell
-            this.scpi.Command("BSE:CELL1:OFF");
+            // Stop Cell
+            this.bse.CellOff();
             Console.WriteLine($"TC_Sensitivity::END");
         }
     }

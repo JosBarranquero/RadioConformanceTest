@@ -1,4 +1,6 @@
 ﻿
+using RadioConformanceTests.Drivers;
+using RadioConformanceTests.Instruments;
 using RadioConformanceTests.TC;
 
 namespace RadioConformanceTests;
@@ -8,9 +10,11 @@ class Program
     const string BSE_ADDRESS = "10.10.10.1";
     static void Main(string[] args)
     {
+        IScpiClient bseConnection = new ScpiClient(BSE_ADDRESS);
+        IBseInstrument bse = new BseInstrument(bseConnection);
+        TC_Sensitivity test = new TC_Sensitivity(bse);
+
         Console.WriteLine("RadioConformanceTests - TC_Sensitivity : START");
-        
-        TC_Sensitivity test = new TC_Sensitivity(BSE_ADDRESS);
         var testVerdict = test.Execute();
 
         Console.WriteLine($"RadioConformanceTests - Verdict : {testVerdict}");
